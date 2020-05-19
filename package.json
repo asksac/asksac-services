@@ -1,0 +1,19 @@
+{
+  "name": "asksac-services",
+  "version": "1.0.0",
+  "description": "Bunch of services and APIs for services.asksac.com domain",
+  "main": "index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/asksac/asksac-services.git"
+  },
+  "author": "Sachin Hamirwasia",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/asksac/asksac-services/issues"
+  },
+  "homepage": "https://github.com/asksac/asksac-services#readme"
+}
