@@ -1,0 +1,15 @@
+{
+  "name": "lambda-hello",
+  "version": "1.0.0",
+  "description": "Hello Lambda function",
+  "main": "hello.js",
+  "scripts": {
+    "test": "node hello.js"
+  },
+  "author": "Sachin Hamirwasia",
+  "license": "MIT",
+  "dependencies": {
+  },
+  "devDependencies": {
+  }
+}
