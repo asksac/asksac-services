@@ -117,7 +117,7 @@ resource "aws_api_gateway_method" "hello_api_method" {
 
 # Integrate API Gateway Resource with HelloFunction Lambda
 
-resource "aws_api_gateway_integration" "lambda_api_integration" {
+resource "aws_api_gateway_integration" "hello_api_lambda_integration" {
   rest_api_id             = aws_api_gateway_rest_api.asksac_services_apig.id
   resource_id             = aws_api_gateway_resource.asksac_api_hello_resource.id
   http_method             = aws_api_gateway_method.hello_api_method.http_method
@@ -132,8 +132,54 @@ resource "aws_lambda_permission" "apigw_lambda" {
   function_name = aws_lambda_function.hello_function_lambda.function_name
   principal     = "apigateway.amazonaws.com"
 
-  source_arn = "arn:aws:execute-api:us-east-1:229984062599:${aws_api_gateway_rest_api.asksac_services_apig.id}/*/${aws_api_gateway_method.hello_api_method.http_method}${aws_api_gateway_resource.asksac_api_hello_resource.path}"
+  #source_arn = "arn:aws:execute-api:us-east-1:229984062599:${aws_api_gateway_rest_api.asksac_services_apig.id}/*/${aws_api_gateway_method.hello_api_method.http_method}${aws_api_gateway_resource.asksac_api_hello_resource.path}"
+
+  # The /*/*/* part allows invocation from any stage, method and resource path
+  # within API Gateway REST API.
+  source_arn = "${aws_api_gateway_rest_api.asksac_services_apig.execution_arn}/*/*/*"
 }
+
+resource "aws_api_gateway_resource" "asksac_api_hello_proxy_resource" {
+  rest_api_id = aws_api_gateway_rest_api.asksac_services_apig.id
+  parent_id   = aws_api_gateway_resource.asksac_api_hello_resource.id
+  path_part   = "{proxy+}"
+}
+
+resource "aws_api_gateway_method" "hello_proxy_method" {
+  rest_api_id = aws_api_gateway_rest_api.asksac_services_apig.id
+  resource_id = aws_api_gateway_resource.asksac_api_hello_proxy_resource.id
+  http_method = "ANY"
+  authorization = "NONE"
+  
+  request_parameters = {
+    "method.request.path.proxy" = true
+  }
+}
+
+resource "aws_api_gateway_integration" "hello_proxy_lambda_integration" {
+  rest_api_id             = aws_api_gateway_rest_api.asksac_services_apig.id
+  resource_id             = aws_api_gateway_resource.asksac_api_hello_proxy_resource.id
+  http_method             = aws_api_gateway_method.hello_proxy_method.http_method
+  type                    = "AWS_PROXY"
+  uri                     = aws_lambda_function.hello_function_lambda.invoke_arn
+  integration_http_method = "POST"
+  request_parameters =  {
+    "integration.request.path.proxy" = "method.request.path.proxy"
+  }
+}
+
+#resource "aws_lambda_permission" "proxy_apigw_lambda" {
+#  statement_id  = "AllowExecutionFromAPIGatewayForHelloProxy"
+#  action        = "lambda:InvokeFunction"
+#  function_name = aws_lambda_function.hello_function_lambda.function_name
+#  principal     = "apigateway.amazonaws.com"
+#
+#  #source_arn = "arn:aws:execute-api:us-east-1:229984062599:${aws_api_gateway_rest_api.asksac_services_apig.id}/*/${aws_api_gateway_method.hello_proxy_method.http_method}/hello/*"
+#
+#  # The /*/*/* part allows invocation from any stage, method and resource path
+#  # within API Gateway REST API.
+#  source_arn = "${aws_api_gateway_rest_api.asksac_services_apig.execution_arn}/*/*/*"
+#}
 
 # Creates an API Gateway Deployment
 
@@ -142,7 +188,9 @@ resource "aws_api_gateway_deployment" "hello_api_prod_deployment" {
   stage_name = "api"
   depends_on = [
     aws_api_gateway_method.hello_api_method,
-    aws_api_gateway_integration.lambda_api_integration
+    aws_api_gateway_integration.hello_api_lambda_integration,
+    aws_api_gateway_method.hello_proxy_method,
+    aws_api_gateway_integration.hello_proxy_lambda_integration
   ]
 }
 
@@ -150,4 +198,8 @@ resource "aws_api_gateway_deployment" "hello_api_prod_deployment" {
 
 output "url" {
   value = "${aws_api_gateway_deployment.hello_api_prod_deployment.invoke_url}${aws_api_gateway_resource.asksac_api_hello_resource.path}"
+}
+
+output "proxy_url" {
+  value = "${aws_api_gateway_resource.asksac_api_hello_proxy_resource.path}"
 }
