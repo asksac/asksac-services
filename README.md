@@ -4,11 +4,11 @@ This project contains a collection of services and APIs hosted on services.asksa
 These services are simple utility APIs (think EchoServer) and meant as template code for 
 writing more complex services. 
 
-### List of Services
+## List of Services
 
 - Hello (/hello)
 
-### License
+## License
 
 [![License](http://img.shields.io/:license-mit-blue.svg?style=flat-square)](http://badges.mit-license.org)
 
