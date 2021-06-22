@@ -1,3 +1,10 @@
+terraform {
+  required_version      = ">= 0.13"
+  required_providers {
+    aws                 = ">= 3.37.0"
+  }
+}
+
 provider "aws" {
   profile = "terraform"
   region = "us-east-1"
@@ -220,9 +227,9 @@ resource "aws_lambda_permission" "apigw_lambda_echo" {
 # Outputs 
 
 output "url" {
-  value = "${aws_apigatewayv2_api.asksac_services_apig.api_endpoint}"
+  value = aws_apigatewayv2_api.asksac_services_apig.api_endpoint
 }
 
 output "api_exec_arn" {
-  value = "${aws_apigatewayv2_api.asksac_services_apig.execution_arn}"
+  value = aws_apigatewayv2_api.asksac_services_apig.execution_arn
 }
