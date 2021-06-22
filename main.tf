@@ -24,7 +24,7 @@ resource "aws_s3_bucket_object" "upload_hello_to_s3" {
 }
 
 resource "aws_lambda_function" "hello_function_lambda" {
-  function_name = "AskSac-HelloFunction"
+  function_name = "AskSacHelloFunction"
 
   s3_bucket = aws_s3_bucket.lambda_pkgs_bucket.id
   s3_key    = "lambdas/hello.zip"
@@ -35,6 +35,37 @@ resource "aws_lambda_function" "hello_function_lambda" {
 
   role = aws_iam_role.asksac_services_lambda_exec_role.arn
   depends_on = [aws_iam_role_policy_attachment.lambda_exec_policy]
+
+  tags = {
+    App        = "asksac-services"
+  }
+}
+
+# Creates EchoFunction Lambda
+
+resource "aws_s3_bucket_object" "upload_echo_to_s3" {
+  bucket = aws_s3_bucket.lambda_pkgs_bucket.id
+  key    = "lambdas/echo.zip"
+  source = "./dist/echo.zip"
+  etag = filemd5("./dist/echo.zip")
+}
+
+resource "aws_lambda_function" "echo_function_lambda" {
+  function_name = "AskSacEchoFunction"
+
+  s3_bucket = aws_s3_bucket.lambda_pkgs_bucket.id
+  s3_key    = "lambdas/echo.zip"
+  source_code_hash = filebase64sha256("./dist/echo.zip")
+
+  handler = "echo.handler"
+  runtime = "nodejs12.x"
+
+  role = aws_iam_role.asksac_services_lambda_exec_role.arn
+  depends_on = [aws_iam_role_policy_attachment.lambda_exec_policy]
+
+  tags = {
+    App        = "asksac-services"
+  }
 }
 
 # Create Lambda execution IAM role, giving permissions to access other AWS services
@@ -95,111 +126,103 @@ resource "aws_iam_role_policy_attachment" "lambda_exec_policy" {
   policy_arn = aws_iam_policy.asksac_services_lambda_policy.arn
 }
 
-# Creates API Gateway and Resource Mapping
+# Creates API Gateway 
 
-resource "aws_api_gateway_rest_api" "asksac_services_apig" {
+resource "aws_apigatewayv2_api" "asksac_services_apig" {
   name          = "asksac-services-apig"
-  description   = "AskSac Services REST API Gateway"
+  protocol_type = "HTTP"
+  description   = "AskSac Services HTTP API Gateway"
+
+  tags = {
+    App        = "asksac-services"
+  }
 }
 
-resource "aws_api_gateway_resource" "asksac_api_hello_resource" {
-  rest_api_id = aws_api_gateway_rest_api.asksac_services_apig.id
-  parent_id   = aws_api_gateway_rest_api.asksac_services_apig.root_resource_id
-  path_part   = "hello"
+resource "aws_apigatewayv2_stage" "asksac_services_default_stage" {
+  api_id      = aws_apigatewayv2_api.asksac_services_apig.id
+  name        = "$default"
+  auto_deploy = true
+
+  depends_on = [aws_apigatewayv2_route.asksac_services_hello_route, aws_apigatewayv2_route.asksac_services_echo_route]
+
+  lifecycle {
+    ignore_changes = [deployment_id, default_route_settings]
+  }
+
+#  route_settings {
+#    route_key = aws_apigatewayv2_route.asksac_services_route.route_key
+#    detailed_metrics_enabled  = true
+#  }
 }
 
-resource "aws_api_gateway_method" "hello_api_method" {
-  rest_api_id = aws_api_gateway_rest_api.asksac_services_apig.id
-  resource_id = aws_api_gateway_resource.asksac_api_hello_resource.id
-  http_method = "GET"
-  authorization = "NONE"
+# Creates Integration and Route for Hello Lambda Function
+
+resource "aws_apigatewayv2_integration" "asksac_services_hello_integration" {
+  api_id                    = aws_apigatewayv2_api.asksac_services_apig.id
+  integration_type          = "AWS_PROXY"
+  description               = "Hello Function Lambda Integration"
+
+  connection_type           = "INTERNET"
+  integration_method        = "POST"
+  integration_uri           = aws_lambda_function.hello_function_lambda.invoke_arn
+  payload_format_version    = "2.0"
 }
 
-# Integrate API Gateway Resource with HelloFunction Lambda
-
-resource "aws_api_gateway_integration" "hello_api_lambda_integration" {
-  rest_api_id             = aws_api_gateway_rest_api.asksac_services_apig.id
-  resource_id             = aws_api_gateway_resource.asksac_api_hello_resource.id
-  http_method             = aws_api_gateway_method.hello_api_method.http_method
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.hello_function_lambda.invoke_arn
-  integration_http_method = "POST"
+resource "aws_apigatewayv2_route" "asksac_services_hello_route" {
+  api_id    = aws_apigatewayv2_api.asksac_services_apig.id
+  route_key = "GET /hello"
+  target    = "integrations/${aws_apigatewayv2_integration.asksac_services_hello_integration.id}"
+  depends_on = [aws_apigatewayv2_integration.asksac_services_hello_integration]
 }
 
-resource "aws_lambda_permission" "apigw_lambda" {
-  statement_id  = "AllowExecutionFromAPIGateway"
+resource "aws_lambda_permission" "apigw_lambda_hello" {
+  statement_id  = "AllowExecutionHelloLambda"
   action        = "lambda:InvokeFunction"
   function_name = aws_lambda_function.hello_function_lambda.function_name
   principal     = "apigateway.amazonaws.com"
 
-  #source_arn = "arn:aws:execute-api:us-east-1:229984062599:${aws_api_gateway_rest_api.asksac_services_apig.id}/*/${aws_api_gateway_method.hello_api_method.http_method}${aws_api_gateway_resource.asksac_api_hello_resource.path}"
+  # The /*/*/* part allows invocation from any stage, method and resource path
+  # within API Gateway REST API.
+  source_arn = "${aws_apigatewayv2_api.asksac_services_apig.execution_arn}/*/*/*"
+}
+
+# Creates Integration and Route for Echo Lambda Function
+
+resource "aws_apigatewayv2_integration" "asksac_services_echo_integration" {
+  api_id                    = aws_apigatewayv2_api.asksac_services_apig.id
+  integration_type          = "AWS_PROXY"
+  description               = "Echo Function Lambda Integration"
+
+  connection_type           = "INTERNET"
+  integration_method        = "POST"
+  integration_uri           = aws_lambda_function.echo_function_lambda.invoke_arn
+  payload_format_version    = "2.0"
+}
+
+resource "aws_apigatewayv2_route" "asksac_services_echo_route" {
+  api_id    = aws_apigatewayv2_api.asksac_services_apig.id
+  route_key = "GET /echo"
+  target    = "integrations/${aws_apigatewayv2_integration.asksac_services_echo_integration.id}"
+  depends_on = [aws_apigatewayv2_integration.asksac_services_echo_integration]
+}
+
+resource "aws_lambda_permission" "apigw_lambda_echo" {
+  statement_id  = "AllowExecutionEchoLambda"
+  action        = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.echo_function_lambda.function_name
+  principal     = "apigateway.amazonaws.com"
 
   # The /*/*/* part allows invocation from any stage, method and resource path
   # within API Gateway REST API.
-  source_arn = "${aws_api_gateway_rest_api.asksac_services_apig.execution_arn}/*/*/*"
-}
-
-resource "aws_api_gateway_resource" "asksac_api_hello_proxy_resource" {
-  rest_api_id = aws_api_gateway_rest_api.asksac_services_apig.id
-  parent_id   = aws_api_gateway_resource.asksac_api_hello_resource.id
-  path_part   = "{proxy+}"
-}
-
-resource "aws_api_gateway_method" "hello_proxy_method" {
-  rest_api_id = aws_api_gateway_rest_api.asksac_services_apig.id
-  resource_id = aws_api_gateway_resource.asksac_api_hello_proxy_resource.id
-  http_method = "ANY"
-  authorization = "NONE"
-  
-  request_parameters = {
-    "method.request.path.proxy" = true
-  }
-}
-
-resource "aws_api_gateway_integration" "hello_proxy_lambda_integration" {
-  rest_api_id             = aws_api_gateway_rest_api.asksac_services_apig.id
-  resource_id             = aws_api_gateway_resource.asksac_api_hello_proxy_resource.id
-  http_method             = aws_api_gateway_method.hello_proxy_method.http_method
-  type                    = "AWS_PROXY"
-  uri                     = aws_lambda_function.hello_function_lambda.invoke_arn
-  integration_http_method = "POST"
-  request_parameters =  {
-    "integration.request.path.proxy" = "method.request.path.proxy"
-  }
-}
-
-#resource "aws_lambda_permission" "proxy_apigw_lambda" {
-#  statement_id  = "AllowExecutionFromAPIGatewayForHelloProxy"
-#  action        = "lambda:InvokeFunction"
-#  function_name = aws_lambda_function.hello_function_lambda.function_name
-#  principal     = "apigateway.amazonaws.com"
-#
-#  #source_arn = "arn:aws:execute-api:us-east-1:229984062599:${aws_api_gateway_rest_api.asksac_services_apig.id}/*/${aws_api_gateway_method.hello_proxy_method.http_method}/hello/*"
-#
-#  # The /*/*/* part allows invocation from any stage, method and resource path
-#  # within API Gateway REST API.
-#  source_arn = "${aws_api_gateway_rest_api.asksac_services_apig.execution_arn}/*/*/*"
-#}
-
-# Creates an API Gateway Deployment
-
-resource "aws_api_gateway_deployment" "hello_api_prod_deployment" {
-  rest_api_id = aws_api_gateway_rest_api.asksac_services_apig.id
-  stage_name = "api"
-  depends_on = [
-    aws_api_gateway_method.hello_api_method,
-    aws_api_gateway_integration.hello_api_lambda_integration,
-    aws_api_gateway_method.hello_proxy_method,
-    aws_api_gateway_integration.hello_proxy_lambda_integration
-  ]
+  source_arn = "${aws_apigatewayv2_api.asksac_services_apig.execution_arn}/*/*/*"
 }
 
 # Outputs 
 
 output "url" {
-  value = "${aws_api_gateway_deployment.hello_api_prod_deployment.invoke_url}${aws_api_gateway_resource.asksac_api_hello_resource.path}"
+  value = "${aws_apigatewayv2_api.asksac_services_apig.api_endpoint}"
 }
 
-output "proxy_url" {
-  value = "${aws_api_gateway_resource.asksac_api_hello_proxy_resource.path}"
+output "api_exec_arn" {
+  value = "${aws_apigatewayv2_api.asksac_services_apig.execution_arn}"
 }
