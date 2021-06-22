@@ -50,9 +50,10 @@ class LambdaPacker {
 }
 
 const installHello = LambdaPacker.install('hello', 'src/lambdas', 'dist'); 
+const installEcho = LambdaPacker.install('echo', 'src/lambdas', 'dist'); 
 
 // Combine tasks and set exports
-const build = gulp.series(installHello); 
+const build = gulp.series(installHello, installEcho); 
 
 exports.build = build; 
 exports.default = build; 
