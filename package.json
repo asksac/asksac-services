@@ -19,12 +19,14 @@
   "homepage": "https://github.com/asksac/asksac-services#readme",
   "dependencies": {},
   "devDependencies": {
-    "aws-sdk": "^2.680.0",
-    "chai": "4.2.0",
-    "del": "^5.1.0",
-    "gulp": "^4.0.2",
-    "gulp-install": "^1.1.0",
-    "gulp-zip": "^5.0.1",
-    "mocha": "^7.1.2"
+    "aws-sdk": ">=2.932.0",
+    "chai": ">=4.3.4",
+    "del": ">=6.0.0",
+    "gulp": ">=4.0.2",
+    "gulp-install": ">=1.1.0",
+    "gulp-zip": ">=5.1.0",
+    "mocha": ">=9.0.1",
+    "yargs-parser": ">=18.1.2",
+    "glob-parent": ">=5.1.2"
   }
 }
