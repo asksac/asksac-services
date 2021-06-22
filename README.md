@@ -7,6 +7,7 @@ writing more complex services.
 ## List of Services
 
 - Hello (/hello)
+- Echo (/echo)
 
 ## License
 
