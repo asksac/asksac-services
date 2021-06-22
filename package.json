@@ -27,6 +27,7 @@
     "gulp-zip": ">=5.1.0",
     "mocha": ">=9.0.1",
     "yargs-parser": ">=18.1.2",
-    "glob-parent": ">=5.1.2"
+    "glob-parent": ">=5.1.2",
+    "lodash.template": ">=4.5.0"
   }
 }
